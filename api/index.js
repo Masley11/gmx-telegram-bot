@@ -1,6 +1,5 @@
 const express = require('express');
 const fetch   = require('node-fetch');
-const mysql   = require('mysql2/promise');
 
 const app = express();
 app.use(express.json());
@@ -10,15 +9,6 @@ const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const TELEGRAM_CHAT  = process.env.TELEGRAM_CHAT_ID;
 const SITE_URL       = process.env.SITE_URL || 'https://gamemasterx.great-site.net';
 const SECRET_KEY     = process.env.SECRET_KEY || 'GMX_SECRET_2026';
-
-// Config BDD GameMasterX
-const dbConfig = {
-    host     : process.env.DB_HOST,
-    user     : process.env.DB_USER,
-    password : process.env.DB_PASS,
-    database : process.env.DB_NAME,
-    ssl      : { rejectUnauthorized: false }
-};
 
 // ── Helper Telegram ───────────────────────────────────────────
 async function sendTelegram(method, params) {
@@ -33,7 +23,6 @@ async function sendTelegram(method, params) {
 
 // ── Route : Recevoir une commande depuis GameMasterX ──────────
 app.post('/notify', async (req, res) => {
-    // Vérifier la clé secrète
     const key = req.headers['x-secret-key'];
     if (key !== SECRET_KEY) {
         return res.status(403).json({ error: 'Unauthorized' });
@@ -101,58 +90,62 @@ app.post('/webhook', async (req, res) => {
     const orderCode = callbackData.replace('deliver_', '');
 
     try {
-        // Connexion BDD
-        const db    = await mysql.createConnection(dbConfig);
-        const [rows] = await db.execute(
-            "SELECT * FROM shop_orders WHERE order_code = ? AND status = 'pending'",
-            [orderCode]
-        );
+        // Appeler GameMasterX pour mettre à jour la BDD
+        const deliverRes = await fetch(`${SITE_URL}/exchange/deliver`, {
+            method  : 'POST',
+            headers : {
+                'Content-Type'   : 'application/json',
+                'x-secret-key'   : SECRET_KEY
+            },
+            body    : JSON.stringify({ order_code: orderCode })
+        });
 
-        if (rows.length === 0) {
+        const deliverData = await deliverRes.json();
+
+        if (deliverData.success) {
+            // Répondre au callback
             await sendTelegram('answerCallbackQuery', {
                 callback_query_id : callbackId,
-                text              : '⚠️ Commande déjà livrée ou introuvable.',
+                text              : '✅ Commande marquée comme livrée !',
                 show_alert        : true
             });
-            await db.end();
-            return res.sendStatus(200);
+
+            // Modifier le message
+            const newText =
+                `✅ *COMMANDE LIVRÉE*\n` +
+                `━━━━━━━━━━━━━━━━━━\n` +
+                `🔑 Code: \`${orderCode}\`\n` +
+                `━━━━━━━━━━━━━━━━━━\n` +
+                `📅 Livré le ${new Date().toLocaleString('fr-FR')}`;
+
+            await sendTelegram('editMessageText', {
+                chat_id    : TELEGRAM_CHAT,
+                message_id : messageId,
+                text       : newText,
+                parse_mode : 'Markdown'
+            });
+
+        } else if (deliverData.already_delivered) {
+            await sendTelegram('answerCallbackQuery', {
+                callback_query_id : callbackId,
+                text              : '⚠️ Commande déjà livrée.',
+                show_alert        : true
+            });
+        } else {
+            await sendTelegram('answerCallbackQuery', {
+                callback_query_id : callbackId,
+                text              : '❌ Erreur. Contactez l\'admin.',
+                show_alert        : true
+            });
         }
-
-        const order = rows[0];
-
-        // Mettre à jour la BDD
-        await db.execute(
-            "UPDATE shop_orders SET status = 'delivered', delivered_at = NOW() WHERE order_code = ?",
-            [orderCode]
-        );
-        await db.end();
-
-        // Répondre au callback
-        await sendTelegram('answerCallbackQuery', {
-            callback_query_id : callbackId,
-            text              : '✅ Commande marquée comme livrée !',
-            show_alert        : true
-        });
-
-        // Modifier le message
-        const newText =
-            `✅ *COMMANDE LIVRÉE*\n` +
-            `━━━━━━━━━━━━━━━━━━\n` +
-            `🔑 Code: \`${orderCode}\`\n` +
-            `📦 Produit: *${order.product_name}*\n` +
-            `🆔 ID Joueur: \`${order.game_user_id}\`\n` +
-            `━━━━━━━━━━━━━━━━━━\n` +
-            `📅 Livré le ${new Date().toLocaleString('fr-FR')}`;
-
-        await sendTelegram('editMessageText', {
-            chat_id    : TELEGRAM_CHAT,
-            message_id : messageId,
-            text       : newText,
-            parse_mode : 'Markdown'
-        });
 
     } catch (err) {
         console.error('Webhook error:', err);
+        await sendTelegram('answerCallbackQuery', {
+            callback_query_id : callbackId,
+            text              : '❌ Erreur serveur.',
+            show_alert        : true
+        });
     }
 
     res.sendStatus(200);
@@ -167,4 +160,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Bot running on port ${PORT}`));
 
 module.exports = app;
-  
