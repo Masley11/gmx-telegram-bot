@@ -29,8 +29,8 @@ function getTelegramChatIds() {
     return [TELEGRAM_CHAT];
 }
 
-// Route notify
-app.post('/api/notify', async function(req, res) {
+// Gestionnaire commun pour /notify et /api/notify
+const notifyHandler = async function(req, res) {
     const key = req.headers['x-secret-key'];
     if (key !== SECRET_KEY) {
         return res.status(403).json({ error: 'Unauthorized' });
@@ -88,7 +88,11 @@ app.post('/api/notify', async function(req, res) {
         console.error('Telegram error:', err);
         res.status(500).json({ error: 'Telegram error: ' + err.message });
     }
-});
+};
+
+// Routes : les deux pointent vers le même gestionnaire
+app.post('/api/notify', notifyHandler);
+app.post('/notify', notifyHandler);
 
 // Route test
 app.get('/api', function(req, res) {
