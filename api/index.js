@@ -49,7 +49,7 @@ app.post('/notify', async (req, res) => {
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `1️⃣ Livrez les diamants à l'ID joueur\n` +
         `2️⃣ Cliquez sur le lien ci-dessous\n` +
-        `3️⃣ Entrez le code PIN : \`70359545\`\n` +
+        `3️⃣ Entrez le code PIN : \`703595\`\n` +
         `4️⃣ Confirmez la livraison\n\n` +
         `🔗 *LIEN DE CONFIRMATION* :\n` +
         `${verifyUrl}\n\n` +
