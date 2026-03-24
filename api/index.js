@@ -37,31 +37,30 @@ app.post('/notify', async (req, res) => {
     const verifyUrl = `${SITE_URL}/verify/${order_code}`;
 
     const message = 
-        `🎮 *NOUVELLE COMMANDE GameMasterX*\n` +
-        `━━━━━━━━━━━━━━━━━━\n` +
-        `🔑 Code: \`${order_code}\`\n` +
-        `📦 Produit: *${product_name}*\n` +
-        `🎯 Jeu: ${game}\n` +
-        `🆔 ID Joueur: \`${game_user_id}\`\n` +
-        `━━━━━━━━━━━━━━━━━━\n` +
-        `🔗 Vérifier: ${verifyUrl}\n` +
-        `✅ Livrez maintenant !`;
-
-    const keyboard = {
-        inline_keyboard: [[
-            {
-                text          : '✅ Marquer comme Livré',
-                callback_data : `deliver_${order_code}`
-            }
-        ]]
-    };
+        `════════════════════════════════════════\n` +
+        `🛍️ *NOUVELLE COMMANDE À LIVRER* 🛍️\n` +
+        `════════════════════════════════════════\n\n` +
+        `📦 *CODE COMMANDE* : \`${order_code}\`\n` +
+        `🎮 *PRODUIT* : *${product_name}*\n` +
+        `🎯 *JEU* : ${game}\n` +
+        `🆔 *ID JOUEUR* : \`${game_user_id}\`\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `✅ *PROCÉDURE DE LIVRAISON* ✅\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `1️⃣ Livrez les diamants à l'ID joueur\n` +
+        `2️⃣ Cliquez sur le lien ci-dessous\n` +
+        `3️⃣ Entrez le code PIN : \`70359545\`\n` +
+        `4️⃣ Confirmez la livraison\n\n` +
+        `🔗 *LIEN DE CONFIRMATION* :\n` +
+        `${verifyUrl}\n\n` +
+        `⚠️ *Ne confirmez qu'APRÈS la livraison !*\n` +
+        `════════════════════════════════════════`;
 
     try {
         await sendTelegram('sendMessage', {
             chat_id      : TELEGRAM_CHAT,
             text         : message,
-            parse_mode   : 'Markdown',
-            reply_markup : keyboard
+            parse_mode   : 'Markdown'
         });
 
         res.json({ success: true, message: 'Notification envoyée' });
