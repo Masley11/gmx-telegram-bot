@@ -50,6 +50,68 @@ app.post('/notify', async (req, res) => {
         `1️⃣ Livrez les diamants à l'ID joueur\n` +
         `2️⃣ Cliquez sur le lien ci-dessous\n` +
         `3️⃣ Entrez le code PIN : \`703595\`\n` +
+const express = require('express');
+const fetch   = require('node-fetch');
+
+const app = express();
+app.use(express.json());
+
+// ── Config ────────────────────────────────────────────────────
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const TELEGRAM_CHAT  = process.env.TELEGRAM_CHAT_ID;
+const SITE_URL       = process.env.SITE_URL || 'https://gamemasterx.great-site.net';
+const SECRET_KEY     = process.env.SECRET_KEY || 'GMX_SECRET_2026';
+
+// ── Helper Telegram ───────────────────────────────────────────
+async function sendTelegram(method, params) {
+    const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/${method}`;
+    const res  = await fetch(url, {
+        method  : 'POST',
+        headers : { 'Content-Type': 'application/json' },
+        body    : JSON.stringify(params)
+    });
+    return res.json();
+}
+
+// ── Récupérer la liste des IDs Telegram ───────────────────────
+function getTelegramChatIds() {
+    // Récupérer les IDs (séparés par des virgules) depuis la variable d'environnement
+    if (process.env.TELEGRAM_CHAT_IDS) {
+        return process.env.TELEGRAM_CHAT_IDS.split(',').map(id => id.trim());
+    }
+    // Fallback : utiliser l'ancienne variable unique
+    return [TELEGRAM_CHAT];
+}
+
+// ── Route : Recevoir une commande depuis GameMasterX ──────────
+app.post('/notify', async (req, res) => {
+    const key = req.headers['x-secret-key'];
+    if (key !== SECRET_KEY) {
+        return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const { order_code, product_name, game, game_user_id } = req.body;
+
+    if (!order_code || !product_name) {
+        return res.status(400).json({ error: 'Missing fields' });
+    }
+
+    const verifyUrl = `${SITE_URL}/verify/${order_code}`;
+
+    const message = 
+        `════════════════════════════════════════\n` +
+        `🛍️ *NOUVELLE COMMANDE À LIVRER* 🛍️\n` +
+        `════════════════════════════════════════\n\n` +
+        `📦 *CODE COMMANDE* : \`${order_code}\`\n` +
+        `🎮 *PRODUIT* : *${product_name}*\n` +
+        `🎯 *JEU* : ${game}\n` +
+        `🆔 *ID JOUEUR* : \`${game_user_id}\`\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `✅ *PROCÉDURE DE LIVRAISON* ✅\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `1️⃣ Livrez les diamants à l'ID joueur\n` +
+        `2️⃣ Cliquez sur le lien ci-dessous\n` +
+        `3️⃣ Entrez le code PIN : \`70359545\`\n` +
         `4️⃣ Confirmez la livraison\n\n` +
         `🔗 *LIEN DE CONFIRMATION* :\n` +
         `${verifyUrl}\n\n` +
@@ -57,13 +119,27 @@ app.post('/notify', async (req, res) => {
         `════════════════════════════════════════`;
 
     try {
-        await sendTelegram('sendMessage', {
-            chat_id      : TELEGRAM_CHAT,
-            text         : message,
-            parse_mode   : 'Markdown'
-        });
+        // Récupérer tous les IDs Telegram
+        const chatIds = getTelegramChatIds();
+        
+        // Envoyer à tous les IDs
+        const results = [];
+        for (const chatId of chatIds) {
+            if (chatId) {
+                const result = await sendTelegram('sendMessage', {
+                    chat_id      : chatId,
+                    text         : message,
+                    parse_mode   : 'Markdown'
+                });
+                results.push({ chatId, success: result.ok });
+            }
+        }
 
-        res.json({ success: true, message: 'Notification envoyée' });
+        res.json({ 
+            success: true, 
+            message: `Notification envoyée à ${results.length} destinataire(s)`,
+            details: results 
+        });
     } catch (err) {
         console.error('Telegram error:', err);
         res.status(500).json({ error: 'Telegram error' });
@@ -159,4 +235,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Bot running on port ${PORT}`));
 
 module.exports = app;
-    
